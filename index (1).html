@@ -1,0 +1,233 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Super Study Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      padding: 7px;
+    }.container {
+  max-width:600px;
+  margin: auto;
+  background: #fff;
+  padding: 25px;
+  border-radius: 15px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+h1 {
+  text-align: center;
+  color: #4CAF50;
+  margin-bottom: 20px;
+}
+
+.task {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.task-name {
+  flex: 1;
+  font-size: 16px;
+}
+
+.status-buttons button {
+  margin-left: 5px;
+  font-size: 16px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.done { background: #4CAF50; color: white; }
+.half { background: #2196F3; color: white; }
+.none { background: #f44336; color: white; }
+
+.progress-bar {
+  height: 25px;
+  background-color: #ddd;
+  border-radius: 15px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background-color: #4CAF50;
+  text-align: center;
+  line-height: 25px;
+  color: white;
+  transition: width 0.4s;
+}
+
+.btn-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.btn {
+  flex: 1;
+  margin: 5px;
+  padding: 10px;
+  font-size: 15px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.reset-btn { background-color: #ff5722; color: white; }
+.export-btn { background-color: #2196F3; color: white; }
+.notify-btn { background-color: #009688; color: white; }
+
+#calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  margin-top: 20px;
+}
+
+#calendar button {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  cursor: pointer;
+  background-color: #fff;
+}
+
+  </style>
+</head>
+<body><div class="container">
+  <h1>TO DO LIST</h1>  <div id="taskList"></div>  <div class="progress-bar">
+    <div class="progress-bar-fill" id="progressFill">0%</div>
+  </div>  <div class="btn-row">
+    <button class="btn reset-btn" onclick="resetAll()">🔁 Reset</button>
+    <button class="btn export-btn" onclick="exportPDF()">📄 Export PDF</button>
+    <button class="btn notify-btn" onclick="requestNotification()">🔔 Daily Reminder</button>
+  </div>  <!-- Calendar and History View -->  <h2 style="text-align:center; margin-top: 40px;">📅 Task History Calendar</h2>
+  <div id="calendar"></div>
+  <div id="historyDetail" style="margin-top: 20px; text-align: center; font-size: 18px; color: #333;"></div>
+</div><script>
+  const tasks = [
+    "Math Practice", "Science Notes Revision", "English Grammar & Writing", "Hindi Literature Reading",
+    "Social Science", "Previous Year Question Papers", "Mock Test", "Flashcards Revision",
+    "Writing Practice", "Doubt Clearing"
+  ];
+
+  const taskList = document.getElementById("taskList");
+  const progressFill = document.getElementById("progressFill");
+  let taskStatus = JSON.parse(localStorage.getItem("taskStatus")) || new Array(tasks.length).fill(0);
+
+  function renderTasks() {
+    taskList.innerHTML = "";
+    tasks.forEach((task, i) => {
+      const div = document.createElement("div");
+      div.className = "task";
+      div.innerHTML = `
+        <span class="task-name">${task}</span>
+        <div class="status-buttons">
+          <button class="none" onclick="setStatus(${i}, 0)">❌</button>
+          <button class="half" onclick="setStatus(${i}, 1)">🔵</button>
+          <button class="done" onclick="setStatus(${i}, 2)">✅</button>
+        </div>
+      `;
+      taskList.appendChild(div);
+    });
+  }
+
+  function setStatus(index, status) {
+    taskStatus[index] = status;
+    localStorage.setItem("taskStatus", JSON.stringify(taskStatus));
+    updateProgress();
+    saveDailyProgress();
+  }
+
+  function updateProgress() {
+    const total = taskStatus.length * 100;
+    const earned = taskStatus.reduce((sum, status) => sum + (status === 2 ? 100 : status === 1 ? 50 : 0), 0);
+    const percent = Math.round((earned / total) * 100);
+    progressFill.style.width = percent + "%";
+    progressFill.textContent = percent + "%";
+  }
+
+  function resetAll() {
+    taskStatus = new Array(tasks.length).fill(0);
+    localStorage.setItem("taskStatus", JSON.stringify(taskStatus));
+    renderTasks();
+    updateProgress();
+    saveDailyProgress();
+  }
+
+  function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.text("Study Task Report", 10, 10);
+    tasks.forEach((task, i) => {
+      let status = taskStatus[i] === 2 ? "✅ Done" : taskStatus[i] === 1 ? "🔵 Half" : "❌ Not Done";
+      doc.text(`${i + 1}. ${task}: ${status}`, 10, 20 + i * 10);
+    });
+    doc.save("study_report.pdf");
+  }
+
+  function requestNotification() {
+    if ("Notification" in window) {
+      Notification.requestPermission().then(permission => {
+        if (permission === "granted") {
+          new Notification("📚 Time to study!", {
+            body: "Don't forget to update your Study Task Tracker today!",
+          });
+        }
+      });
+    } else {
+      alert("Your browser does not support notifications.");
+    }
+  }
+
+  function saveDailyProgress() {
+    const total = taskStatus.length * 100;
+    const earned = taskStatus.reduce((sum, status) => sum + (status === 2 ? 100 : status === 1 ? 50 : 0), 0);
+    const percent = Math.round((earned / total) * 100);
+    const dateKey = new Date().toISOString().split('T')[0];
+    const history = JSON.parse(localStorage.getItem("history") || '{}');
+    history[dateKey] = percent;
+    localStorage.setItem("history", JSON.stringify(history));
+  }
+
+  function buildCalendar() {
+    const calendarDiv = document.getElementById("calendar");
+    const historyDetail = document.getElementById("historyDetail");
+    const today = new Date();
+    const month = today.getMonth();
+    const year = today.getFullYear();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    calendarDiv.innerHTML = "";
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const btn = document.createElement("button");
+      btn.textContent = d;
+      btn.onclick = () => showHistory(dateStr);
+      calendarDiv.appendChild(btn);
+    }
+  }
+
+  function showHistory(dateStr) {
+    const history = JSON.parse(localStorage.getItem("history") || '{}');
+    const sortedDates = Object.keys(history).sort((a, b) => b.localeCompare(a));
+    const percent = history[dateStr];
+    document.getElementById("historyDetail").textContent = percent !== undefined ? `${dateStr}: ${percent}% done` : `${dateStr}: ❌ No record`;
+  }
+
+  renderTasks();
+  updateProgress();
+  buildCalendar();
+  saveDailyProgress();
+</script></body>
+</html>
